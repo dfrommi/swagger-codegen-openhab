@@ -1,0 +1,105 @@
+package {{package}};
+
+import java.io.IOException;
+import java.lang.reflect.Type;
+import java.util.concurrent.TimeUnit;
+
+import org.eclipse.jetty.client.HttpClient;
+import org.eclipse.jetty.client.api.ContentResponse;
+import org.eclipse.jetty.client.api.Request;
+import org.eclipse.jetty.http.HttpHeader;
+import org.eclipse.jetty.http.HttpMethod;
+import org.eclipse.jetty.http.HttpStatus;
+import org.eclipse.jetty.util.ssl.SslContextFactory;
+import org.eclipse.jetty.client.util.StringContentProvider;
+
+import com.google.gson.reflect.TypeToken;
+import com.google.gson.Gson;
+
+import {{invokerPackage}}.ApiException;
+import {{invokerPackage}}.auth.Authorizer;
+
+{{#imports}}import {{import}};
+{{/imports}}
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+{{#operations}}
+public class {{classname}} {
+  private static final HttpClient CLIENT = new HttpClient(new SslContextFactory());
+
+  private String baseUrl = "{{{basePath}}}";
+  private int timeout = 5000;
+
+  private Gson gson;
+  private Authorizer authorizer;
+
+  public {{classname}}(Gson gson, Authorizer authorizer) {
+    this.gson = gson;
+    this.authorizer = authorizer;
+  }
+
+  {{#operation}}
+  public {{#returnType}}{{{returnType}}}{{/returnType}}{{^returnType}}void{{/returnType}} {{operationId}}({{#allParams}}{{{dataType}}} {{paramName}}{{#hasMore}}, {{/hasMore}}{{/allParams}}) throws IOException, ApiException {
+    {{#allParams}}{{#required}}
+    // verify the required parameter '{{paramName}}' is set
+    if ({{paramName}} == null) {
+      throw new ApiException(400, "Missing the required parameter '{{paramName}}' when calling {{operationId}}");
+    }
+    {{/required}}{{/allParams}}
+
+    startHttpClient(CLIENT);
+
+    // create path and map variables
+    String path = "{{{path}}}"{{#pathParams}}
+      .replaceAll("\\{" + "{{baseName}}" + "\\}", {{{paramName}}}.toString()){{/pathParams}};
+
+    Request request = CLIENT.newRequest(baseUrl + path).method(HttpMethod.{{httpMethod}}).timeout(timeout,
+            TimeUnit.MILLISECONDS);
+
+    request.accept({{#produces}}"{{{mediaType}}}"{{#hasMore}}, {{/hasMore}}{{/produces}});
+    request.header(HttpHeader.USER_AGENT, "{{#httpUserAgent}}{{{.}}}{{/httpUserAgent}}{{^httpUserAgent}}openhab/{{{artifactId}}}/{{{artifactVersion}}}{{/httpUserAgent}}");
+
+    if (authorizer != null) {
+      authorizer.addAuthorization(request);
+    }
+
+    {{#bodyParam}}
+    String serializedBody = gson.toJson({{paramName}});
+    request.content(new StringContentProvider(serializedBody){{#consumes}}{{#-first}}, "{{{mediaType}}}"{{/-first}}{{/consumes}});
+    {{/bodyParam}}
+
+    ContentResponse response;
+    try {
+      response = request.send();
+    } catch (Exception e) {
+      throw new IOException(e);
+    }
+
+    int statusCode = response.getStatus();
+    if (statusCode >= HttpStatus.BAD_REQUEST_400) {
+      throw new ApiException(response, "Operation {{operationId}} failed with error " + statusCode);
+    }
+
+    {{#returnType}}
+    Type returnType = new TypeToken<{{{returnType}}}>(){}.getType();
+    return gson.fromJson(response.getContentAsString(), returnType);
+    {{/returnType}}
+  }
+
+  {{/operation}}
+
+  private static void startHttpClient(HttpClient client) {
+    if (!client.isStarted()) {
+        try {
+            client.start();
+        } catch (Exception e) {
+            // nothing we can do here
+        }
+    }
+  }
+}
+{{/operations}}

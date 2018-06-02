@@ -1,0 +1,9 @@
+package {{invokerPackage}}.auth;
+
+import org.eclipse.jetty.client.api.Request;
+import java.io.IOException;
+import {{invokerPackage}}.ApiException;
+
+public interface Authorizer {
+    void addAuthorization(Request request) throws ApiException, IOException;
+}

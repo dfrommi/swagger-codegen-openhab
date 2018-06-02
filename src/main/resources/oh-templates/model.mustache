@@ -1,0 +1,14 @@
+package {{package}};
+
+import java.util.Objects;
+import java.util.Arrays;
+import com.google.gson.annotations.SerializedName;
+{{#imports}}
+import {{import}};
+{{/imports}}
+
+{{#models}}
+{{#model}}
+{{#isEnum}}{{>modelEnum}}{{/isEnum}}{{^isEnum}}{{>pojo}}{{/isEnum}}
+{{/model}}
+{{/models}}
